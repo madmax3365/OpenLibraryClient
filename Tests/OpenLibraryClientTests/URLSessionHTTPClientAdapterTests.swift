@@ -49,9 +49,9 @@ final class URLSessionHTTPClientAdapterTests: XCTestCase {
 
 private extension URLSessionHTTPClientAdapterTests {
     class URLProtocolStub: URLProtocol {
-        private static var stubs: [URL: Result<Data, Error>] = [:]
+        private static var stubs: [URL: Result<(data: Data, response: URLResponse), Error>] = [:]
 
-        static func stub(_ url: URL, with result: Result<Data, Error>) {
+        static func stub(_ url: URL, with result: Result<(data: Data, response: URLResponse), Error>) {
             stubs[url] = result
         }
 
@@ -83,7 +83,8 @@ private extension URLSessionHTTPClientAdapterTests {
 
             switch stub {
             case .success(let success):
-                client?.urlProtocol(self, didLoad: success)
+                client?.urlProtocol(self, didLoad: success.data)
+                client?.urlProtocol(self, didReceive: success.response, cacheStoragePolicy: .notAllowed)
             case .failure(let failure):
                 client?.urlProtocol(self, didFailWithError: failure)
             }
