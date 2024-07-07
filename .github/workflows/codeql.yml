@@ -12,7 +12,7 @@ on:
 jobs:
   analyze:
     name: Analyze
-    runs-on: 'macos-14'
+    runs-on: 'macos-latest'
     timeout-minutes: 120
     permissions:
       security-events: write
@@ -30,16 +30,16 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Setup Swift
+      uses: swift-actions/setup-swift@v2
+
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v3
       with:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
         queries: security-extended,security-and-quality
-        config: |
-          paths:
-            - Sources
-            - Tests
+
     - if: matrix.build-mode == 'manual'
       shell: bash
       run: swift build --build-tests
