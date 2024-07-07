@@ -6,8 +6,8 @@ on:
   pull_request:
     branches: [ "main" ]
   schedule:
-  # Every day at 10:00
-    - cron: '0 10 * * *'
+  # Every Sunday at 10:00
+    - cron: '0 10 * * 0'
 
 jobs:
   analyze:
