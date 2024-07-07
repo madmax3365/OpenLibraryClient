@@ -39,9 +39,10 @@ final class URLSessionHTTPClientAdapterTests: XCTestCase {
 
     func test_throwsErrorWhenNetworkRequestFails() async throws {
         let sut = URLSessionHTTPClientAdapter(session: .shared)
-        URLProtocolStub.stub(URL(string: "http://failing-url.com")!, with: .failure(URLError(.notConnectedToInternet)))
+        let requestURL = URL(string: "http://failing-url.com")!
+        URLProtocolStub.stub(requestURL, with: .failure(URLError(.notConnectedToInternet)))
 
-        await XCTAssertThrowsErrorAsync(try await sut.execute(HTTPRequest(url: URL(string: "http://failing-url.com")!, method: .get)))
+        await XCTAssertThrowsErrorAsync(try await sut.execute(HTTPRequest(url: requestURL, method: .get)))
     }
 }
 
