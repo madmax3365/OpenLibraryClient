@@ -44,6 +44,19 @@ final class URLSessionHTTPClientAdapterTests: XCTestCase {
 
         await XCTAssertThrowsErrorAsync(try await sut.execute(HTTPRequest(url: requestURL, method: .get)))
     }
+    
+    func test_returnsValueOnSuccess() async throws {
+        let sut = URLSessionHTTPClientAdapter(session: .shared)
+        let requestURL = URL(string: "https://success-with-data.com")!
+        let responseData = Data("Hello World".utf8)
+        let urlResponse = HTTPURLResponse(url: requestURL, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        URLProtocolStub.stub(requestURL, with: .success((data: responseData, response: urlResponse)))
+
+        let response = try await sut.execute(HTTPRequest(url: requestURL, method: .get))
+
+        XCTAssertEqual(response.data, responseData)
+        XCTAssertEqual(response.statusCode, 200)
+    }
 }
 
 // MARK: - Test Helpers
