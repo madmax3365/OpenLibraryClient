@@ -29,8 +29,6 @@ import Foundation
 
 /// A model representing an HTTP request
 struct HTTPRequest: Sendable {
-    typealias HTTPHeader = [String: String?]
-
     /// HTTP URL to make request to
     var url: URL
 
@@ -38,7 +36,7 @@ struct HTTPRequest: Sendable {
     var method: Method
 
     /// Additional HTTP headers to append to the request
-    var additionalHeaders: [HTTPHeader]
+    var additionalHeaders: [String: String?] = [:]
 }
 
 // MARK: - Sub-types
