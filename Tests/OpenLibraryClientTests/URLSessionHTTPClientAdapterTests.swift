@@ -90,6 +90,20 @@ final class URLSessionHTTPClientAdapterTests: XCTestCase {
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(response.data, responseData)
     }
+
+    func test_returnsInvalidStatusCodeWhenResponseIsNotHttpResponse() async throws {
+        let sut = URLSessionHTTPClientAdapter(session: .shared)
+        let requestURL = URL(string: "http://wrong-response-type.com")!
+        let responseData = Data("Hello World".utf8)
+        let urlResponse = URLResponse(url: requestURL, mimeType: nil, expectedContentLength: 0, textEncodingName: nil)
+
+        URLProtocolStub.stub(requestURL, with: .success((data: responseData, response: urlResponse)))
+
+        let response = try await sut.execute(HTTPRequest(url: requestURL, method: .get))
+
+        XCTAssertEqual(response.data, responseData)
+        XCTAssertEqual(response.statusCode, -1)
+    }
 }
 
 // MARK: - Test Helpers
