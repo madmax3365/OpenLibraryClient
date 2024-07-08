@@ -38,24 +38,57 @@ final class URLSessionHTTPClientAdapterTests: XCTestCase {
     }
 
     func test_throwsErrorWhenNetworkRequestFails() async throws {
-        let sut = URLSessionHTTPClientAdapter(session: .shared)
         let requestURL = URL(string: "http://failing-url.com")!
         URLProtocolStub.stub(requestURL, with: .failure(URLError(.notConnectedToInternet)))
+        let sut = URLSessionHTTPClientAdapter(session: .shared)
 
         await XCTAssertThrowsErrorAsync(try await sut.execute(HTTPRequest(url: requestURL, method: .get)))
     }
-    
+
     func test_returnsValueOnSuccess() async throws {
-        let sut = URLSessionHTTPClientAdapter(session: .shared)
         let requestURL = URL(string: "https://success-with-data.com")!
         let responseData = Data("Hello World".utf8)
         let urlResponse = HTTPURLResponse(url: requestURL, statusCode: 200, httpVersion: nil, headerFields: nil)!
         URLProtocolStub.stub(requestURL, with: .success((data: responseData, response: urlResponse)))
+        let sut = URLSessionHTTPClientAdapter(session: .shared)
 
         let response = try await sut.execute(HTTPRequest(url: requestURL, method: .get))
 
         XCTAssertEqual(response.data, responseData)
         XCTAssertEqual(response.statusCode, 200)
+    }
+
+    func test_respectsAllPassedArguments() async throws {
+        let sut = URLSessionHTTPClientAdapter(session: .shared)
+        let requestURL = URL(string: "http://arguments-test.com")!
+        let responseData = Data("Hello World".utf8)
+        let urlResponse = HTTPURLResponse(url: requestURL, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        URLProtocolStub.stub(requestURL, with: .success((data: responseData, response: urlResponse)))
+
+        let json = """
+        {
+        "key": "value"
+        }
+        """.utf8
+
+        let response = try await sut.execute(
+            HTTPRequest(
+                url: requestURL,
+                method: .post(body: Data(json)),
+                additionalHeaders: [
+                    "Content-Type": "application/json"
+                ]
+            )
+        )
+        let currentRequest = URLProtocolStub.requests[requestURL]
+
+        XCTAssertNotNil(currentRequest)
+        XCTAssertEqual(currentRequest?.httpMethod, HTTPRequest.Method.post(body: Data()).name)
+        XCTAssertNotNil(currentRequest?.httpBodyStream)
+        XCTAssertEqual(currentRequest?.value(forHTTPHeaderField: "Content-Type"), "application/json")
+        XCTAssertEqual(URLProtocolStub.readBodyStream(currentRequest!.httpBodyStream!), Data(json))
+        XCTAssertEqual(response.statusCode, 200)
+        XCTAssertEqual(response.data, responseData)
     }
 }
 
@@ -64,6 +97,8 @@ final class URLSessionHTTPClientAdapterTests: XCTestCase {
 private extension URLSessionHTTPClientAdapterTests {
     class URLProtocolStub: URLProtocol {
         private static var stubs: [URL: Result<(data: Data, response: URLResponse), Error>] = [:]
+
+        static var requests: [URL: URLRequest] = [:]
 
         static func stub(_ url: URL, with result: Result<(data: Data, response: URLResponse), Error>) {
             stubs[url] = result
@@ -76,6 +111,28 @@ private extension URLSessionHTTPClientAdapterTests {
         static func stopInterceptingRequests() {
             URLProtocol.unregisterClass(URLProtocolStub.self)
             stubs = [:]
+            requests = [:]
+        }
+
+        static func readBodyStream(_ bodyStream: InputStream) -> Data {
+            bodyStream.open()
+
+            let bufferSize = 16
+
+            let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+
+            var data = Data()
+
+            while bodyStream.hasBytesAvailable {
+                let readDat = bodyStream.read(buffer, maxLength: bufferSize)
+                data.append(buffer, count: readDat)
+            }
+
+            buffer.deallocate()
+
+            bodyStream.close()
+
+            return data
         }
 
         override class func canInit(with request: URLRequest) -> Bool {
@@ -94,6 +151,8 @@ private extension URLSessionHTTPClientAdapterTests {
             guard let url = request.url, let stub = URLProtocolStub.stubs[url] else {
                 return
             }
+
+            URLProtocolStub.requests[url] = request
 
             switch stub {
             case .success(let success):
