@@ -104,6 +104,23 @@ final class URLSessionHTTPClientAdapterTests: XCTestCase {
         XCTAssertEqual(response.data, responseData)
         XCTAssertEqual(response.statusCode, -1)
     }
+
+    func test_shouldCancelRequestWhenParentTaskCanceled() async throws {
+        let sut = URLSessionHTTPClientAdapter(session: .shared)
+        let requestURL = URL(string: "http://handles-cancellation.com")!
+
+        URLProtocolStub.stub(requestURL, with: .failure(URLError(.badURL)))
+        let task = Task {
+            try? await sut.execute(HTTPRequest(url: requestURL, method: .get))
+        }
+
+        task.cancel()
+
+        let response = await task.value
+
+        XCTAssertNil(response)
+        XCTAssertNil(URLProtocolStub.requests[requestURL])
+    }
 }
 
 // MARK: - Test Helpers
