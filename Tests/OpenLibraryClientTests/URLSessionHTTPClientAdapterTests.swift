@@ -29,8 +29,11 @@
 import XCTest
 
 final class URLSessionHTTPClientAdapterTests: XCTestCase {
+    var sut: URLSessionHTTPClientAdapter!
+
     override func setUpWithError() throws {
         URLProtocolStub.startInterceptingRequests()
+        sut = URLSessionHTTPClientAdapter(session: .shared)
     }
 
     override func tearDownWithError() throws {
@@ -40,9 +43,8 @@ final class URLSessionHTTPClientAdapterTests: XCTestCase {
     func test_throwsErrorWhenNetworkRequestFails() async throws {
         let requestURL = URL(string: "http://failing-url.com")!
         URLProtocolStub.stub(requestURL, with: .failure(URLError(.notConnectedToInternet)))
-        let sut = URLSessionHTTPClientAdapter(session: .shared)
 
-        await XCTAssertThrowsErrorAsync(try await sut.execute(HTTPRequest(url: requestURL, method: .get)))
+        await XCTAssertThrowsErrorAsync(try await sut.execute(makeHTTPRequest(url: requestURL)))
     }
 
     func test_returnsValueOnSuccess() async throws {
@@ -50,16 +52,14 @@ final class URLSessionHTTPClientAdapterTests: XCTestCase {
         let responseData = Data("Hello World".utf8)
         let urlResponse = HTTPURLResponse(url: requestURL, statusCode: 200, httpVersion: nil, headerFields: nil)!
         URLProtocolStub.stub(requestURL, with: .success((data: responseData, response: urlResponse)))
-        let sut = URLSessionHTTPClientAdapter(session: .shared)
 
-        let response = try await sut.execute(HTTPRequest(url: requestURL, method: .get))
+        let response = try await sut.execute(makeHTTPRequest(url: requestURL))
 
         XCTAssertEqual(response.data, responseData)
         XCTAssertEqual(response.statusCode, 200)
     }
 
     func test_respectsAllPassedArguments() async throws {
-        let sut = URLSessionHTTPClientAdapter(session: .shared)
         let requestURL = URL(string: "http://arguments-test.com")!
         let responseData = Data("Hello World".utf8)
         let urlResponse = HTTPURLResponse(url: requestURL, statusCode: 200, httpVersion: nil, headerFields: nil)!
@@ -72,7 +72,7 @@ final class URLSessionHTTPClientAdapterTests: XCTestCase {
         """.utf8
 
         let response = try await sut.execute(
-            HTTPRequest(
+            makeHTTPRequest(
                 url: requestURL,
                 method: .post(body: Data(json)),
                 additionalHeaders: [
@@ -92,26 +92,24 @@ final class URLSessionHTTPClientAdapterTests: XCTestCase {
     }
 
     func test_returnsInvalidStatusCodeWhenResponseIsNotHttpResponse() async throws {
-        let sut = URLSessionHTTPClientAdapter(session: .shared)
         let requestURL = URL(string: "http://wrong-response-type.com")!
         let responseData = Data("Hello World".utf8)
         let urlResponse = URLResponse(url: requestURL, mimeType: nil, expectedContentLength: 0, textEncodingName: nil)
 
         URLProtocolStub.stub(requestURL, with: .success((data: responseData, response: urlResponse)))
 
-        let response = try await sut.execute(HTTPRequest(url: requestURL, method: .get))
+        let response = try await sut.execute(makeHTTPRequest(url: requestURL))
 
         XCTAssertEqual(response.data, responseData)
         XCTAssertEqual(response.statusCode, -1)
     }
 
     func test_shouldCancelRequestWhenParentTaskCanceled() async throws {
-        let sut = URLSessionHTTPClientAdapter(session: .shared)
         let requestURL = URL(string: "http://handles-cancellation.com")!
 
         URLProtocolStub.stub(requestURL, with: .failure(URLError(.badURL)))
         let task = Task {
-            try? await sut.execute(HTTPRequest(url: requestURL, method: .get))
+            try? await sut.execute(makeHTTPRequest(url: requestURL))
         }
 
         task.cancel()
@@ -126,6 +124,14 @@ final class URLSessionHTTPClientAdapterTests: XCTestCase {
 // MARK: - Test Helpers
 
 private extension URLSessionHTTPClientAdapterTests {
+    private func makeHTTPRequest(
+        url: URL,
+        method: HTTPRequest.Method = .get,
+        additionalHeaders: [String: String?] = [:]
+    ) -> HTTPRequest {
+        HTTPRequest(url: url, method: method, additionalHeaders: additionalHeaders)
+    }
+
     class URLProtocolStub: URLProtocol {
         private static var stubs: [URL: Result<(data: Data, response: URLResponse), Error>] = [:]
 
